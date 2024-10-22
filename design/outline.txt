@@ -1,0 +1,13 @@
+Shade Media Player is intended as a lightweight and multiplatform app for casual library playback featuring tools for curation of a main shuffle selection and a variety of smart playlists.
+Goals:
+	- Primary, MVP: Support playback of a library of music files with specific tracks included or excluded from shuffle
+		- Keep an index of media files, flexibly support importing, exporting, and handling missing entries
+Stretch goals:
+	- Allow smart selection of tracks with common musical components
+		- eg. tempo, genre, sentiment, rating
+		- Fetch data from a 3rd party API if at all possible
+	- Automate playlist with broader themes using the data above
+		- eg. escalation of energy (tempo in genre), 3-act (loose) "story", back-and-forth
+Potential goals:
+	- With user consent, network with other instances with the same tracks and anonymously recommend playlists from others' music preferences
+	- Recommend tracks a user might be interested in based on the above data

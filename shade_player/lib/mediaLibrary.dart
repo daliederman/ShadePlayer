@@ -27,6 +27,7 @@ class Library extends ChangeNotifier {
     var db = await databaseFactory.openDatabase(dbPath);
     final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
     if (mediaExists.isNotEmpty) {
+      await db.close();
       return;
     }
     Map<String, String> mediaMap = {
@@ -46,8 +47,18 @@ class Library extends ChangeNotifier {
   }
 
   void removeMedia(Media media) async {
-    mediaList.remove(media);
-    // TODO: Add logic for saving to database
+    if (mediaList.contains(media)) {
+      mediaList.remove(media);
+    }
+    var databaseFactory = databaseFactoryFfi; // Potential: Add logic for handling other platforms
+    var db = await databaseFactory.openDatabase(dbPath);
+    final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
+    if (mediaExists.isEmpty) {
+      await db.close();
+      return;
+    }
+    db.delete('media', where: 'path = ?', whereArgs: [media.path]);
+    await db.close();
     notifyListeners();
   }
 

@@ -41,11 +41,18 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
         onError: (Object e, StackTrace stackTrace) {
       print('A stream error occurred: $e');
     });
+    try {
+      _library.loadLibraryFile();
+    } on Exception catch (e) {
+      print("Error loading library file: $e");
+    }
+
     // Try to load audio from a source and catch any errors.
     try {
       // AAC example: https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.aac
       // MP3 example: https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3
-      await _player.setAudioSource(AudioSource.file(_library.getNext().path));
+      String path = _library.getNext().path;
+      if (path != '') await _player.setAudioSource(AudioSource.file(path));
     } on PlayerException catch (e) {
       print("Error loading audio source: $e");
     }
@@ -92,9 +99,9 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false, //Places the debug stripe at the corner of the app while debugging
       home: Scaffold(
         body: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            /*
-            SafeArea(
+            /*SafeArea(
               child: NavigationBar(
                 destinations: [
                   NavigationDestination(
@@ -113,8 +120,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
                   });
                 },
               ),
-            ),
-            */
+            ),*/
             Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.end,

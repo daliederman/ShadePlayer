@@ -80,7 +80,8 @@ class Library extends ChangeNotifier {
 
   Media getNext() {
     if (mediaList.isEmpty) {
-      throw Exception('No media in library');
+      return Media('false', '', '', '', '', '', '', '', false);
+      //throw Exception('No media in library');
     }
     // Locate an entry on the search list that is not playing and has a shuffle value of true.
     // If no entries on the search list exist, return the first entry on the media list.
@@ -115,7 +116,7 @@ class Media extends ChangeNotifier {
   String duration = "";
   String path = "";
   // Potential: Support manipulating album art
-  bool isPlaying;
+  bool isPlaying = false;
   int playCount = 0;
 
   Media(this.shuffle,this.title, this.artist, this.album, this.genre, this.year, this.duration, this.path, this.isPlaying);

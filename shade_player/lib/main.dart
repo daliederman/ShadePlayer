@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio/common.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shade_player/media_library.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() => runApp(const ShadePlayer());
 
@@ -18,9 +19,15 @@ class ShadePlayer extends StatefulWidget {
 class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   final _player = AudioPlayer();
   final _library = Library();
-  int indexPage = 0;
-  late Media currentMedia;
+  int iPage = 0;
+  Media currentMedia = Media('false', '', '', '', '', '', '', '', false, 0);
+  List<Media> sortedMedia = [];
 
+  int titleWidth = 100;
+  int durationWidth = 24;
+  int artistWidth = 100;
+  int albumWidth = 100; 
+  
   @override
   void initState() {
     super.initState();
@@ -51,7 +58,8 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     try {
       // AAC example: https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.aac
       // MP3 example: https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3
-      String path = _library.getNext().path;
+      currentMedia = _library.getNext();
+      String path = currentMedia.path;
       if (path != '') await _player.setAudioSource(AudioSource.file(path));
     } on PlayerException catch (e) {
       print("Error loading audio source: $e");
@@ -89,6 +97,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    sortedMedia = _library.mediaList;
     return MaterialApp(
       title: 'Shade Media Player',
       theme: ThemeData(
@@ -98,55 +107,81 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       
       debugShowCheckedModeBanner: false, //Places the debug stripe at the corner of the app while debugging
       home: Scaffold(
-        body: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            /*SafeArea(
-              child: NavigationBar(
-                destinations: [
-                  NavigationDestination(
-                    icon: Icon(Icons.disc_full), 
-                    label: 'Media',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.settings), 
-                    label: 'Settings',
-                  ),
-                ],
-                selectedIndex: indexPage,
-                onDestinationSelected: (value) {
-                  setState(() {
-                    indexPage = value;
-                  });
-                },
-              ),
-            ),*/
-            Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.end,
+        body: ListView.builder(itemCount: sortedMedia.length, itemBuilder: (context, i) {
+          IconData icon = Icons.shuffle;
+          if (sortedMedia[i].shuffle == 'true') {
+            icon = Icons.shuffle_on;
+          }
+          if (sortedMedia[i].isPlaying) {
+            //icon = Icons.play_arrow;
+            
+          }
+          return Row(
             children: [
-              // Display play/pause button and volume/speed sliders.
-              ControlButtons(_player),
-              // Display seek bar. Using StreamBuilder, this widget rebuilds
-              // each time the position, buffered position or duration changes.
-              StreamBuilder<PositionData>(
-                stream: _positionDataStream,
-                builder: (context, snapshot) {
-                  final positionData = snapshot.data;
-                  return SeekBar(
-                    duration: positionData?.duration ?? Duration.zero,
-                    position: positionData?.position ?? Duration.zero,
-                    bufferedPosition:
-                        positionData?.bufferedPosition ?? Duration.zero,
-                    onChangeEnd: _player.seek,
-                  );
+              IconButton(
+                icon: Icon(icon),
+                onPressed: () {
+                  _library.toggleShuffle(sortedMedia[i]);
                 },
               ),
+              Flexible(flex: titleWidth, child: Text(sortedMedia[i].title)),
+              Flexible(flex: durationWidth, child: Text(sortedMedia[i].duration)),
+              Flexible(flex: artistWidth, child: Text(sortedMedia[i].artist)),
+              Flexible(flex: albumWidth, child: Text(sortedMedia[i].album)),
             ],
-          ),
-            ],
+          );
+        }),
+        
+        /*Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              height: 96,
+              width: 96,
+              child: NavigationRail(destinations: [
+              NavigationRailDestination(
+                icon: Icon(Icons.disc_full), 
+                label: Text('Media'), // rail format
+                //label: 'Media', // bar format
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.settings), 
+                label: Text('Settings'), // rail format
+                //label: 'Settings', // bar format
+              ),
+            ], selectedIndex: indexPage, onDestinationSelected: (value) {
+              setState(() {
+                indexPage = value;
+              });
+            })),
 
-
+          ],
+        ),*/
+        bottomNavigationBar: SafeArea(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Display play/pause button and volume/speed sliders.
+                ControlButtons(_player, _library, currentMedia),
+                // Display seek bar. Using StreamBuilder, this widget rebuilds
+                // each time the position, buffered position or duration changes.
+                StreamBuilder<PositionData>(
+                  stream: _positionDataStream,
+                  builder: (context, snapshot) {
+                    final positionData = snapshot.data;
+                    return SeekBar(
+                        duration: positionData?.duration ?? Duration.zero,
+                        position: positionData?.position ?? Duration.zero,
+                        bufferedPosition:
+                            positionData?.bufferedPosition ?? Duration.zero,
+                        onChangeEnd: _player.seek,
+                    );
+                  },
+                ),
+              ],
+            ),
         ),
       ),
     );
@@ -156,89 +191,107 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 /// Displays the play/pause button and volume/speed sliders.
 class ControlButtons extends StatelessWidget {
   final AudioPlayer player;
+  final Media media;
+  final Library library;
 
-  const ControlButtons(this.player, {super.key});
+  const ControlButtons(this.player, this.library, this.media, {super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Column(
       children: [
-        // Opens volume slider dialog
-        IconButton(
-          icon: const Icon(Icons.volume_up),
-          onPressed: () {
-            showSliderDialog(
-              context: context,
-              title: "Adjust volume",
-              divisions: 10,
-              min: 0.0,
-              max: 1.0,
-              value: player.volume,
-              stream: player.volumeStream,
-              onChanged: player.setVolume,
-            );
-          },
-        ),
-
-        /// This StreamBuilder rebuilds whenever the player state changes, which
-        /// includes the playing/paused state and also the
-        /// loading/buffering/ready state. Depending on the state we show the
-        /// appropriate button or loading indicator.
-        StreamBuilder<PlayerState>(
-          stream: player.playerStateStream,
-          builder: (context, snapshot) {
-            final playerState = snapshot.data;
-            final processingState = playerState?.processingState;
-            final playing = playerState?.playing;
-            if (processingState == ProcessingState.loading ||
-                processingState == ProcessingState.buffering) {
-              return Container(
-                margin: const EdgeInsets.all(8.0),
-                width: 64.0,
-                height: 64.0,
-                child: const CircularProgressIndicator(),
-              );
-            } else if (playing != true) {
-              return IconButton(
-                icon: const Icon(Icons.play_arrow),
-                iconSize: 64.0,
-                onPressed: player.play,
-              );
-            } else if (processingState != ProcessingState.completed) {
-              return IconButton(
-                icon: const Icon(Icons.pause),
-                iconSize: 64.0,
-                onPressed: player.pause,
-              );
-            } else {
-              return IconButton(
-                icon: const Icon(Icons.replay),
-                iconSize: 64.0,
-                onPressed: () => player.seek(Duration.zero),
-              );
-            }
-          },
-        ),
-        // Opens speed slider dialog
-        StreamBuilder<double>(
-          stream: player.speedStream,
-          builder: (context, snapshot) => IconButton(
-            icon: Text("${snapshot.data?.toStringAsFixed(1)}x",
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            onPressed: () {
-              showSliderDialog(
-                context: context,
-                title: "Adjust speed",
-                divisions: 10,
-                min: 0.5,
-                max: 1.5,
-                value: player.speed,
-                stream: player.speedStream,
-                onChanged: player.setSpeed,
-              );
-            },
-          ),
+        Text('${media.artist} - ${media.title}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Opens volume slider dialog
+            IconButton(
+              icon: const Icon(Icons.volume_up),
+              onPressed: () {
+                showSliderDialog(
+                  context: context,
+                  title: "Adjust volume",
+                  divisions: 10,
+                  min: 0.0,
+                  max: 1.0,
+                  value: player.volume,
+                  stream: player.volumeStream,
+                  onChanged: player.setVolume,
+                );
+              },
+            ),
+        
+            /// This StreamBuilder rebuilds whenever the player state changes, which
+            /// includes the playing/paused state and also the
+            /// loading/buffering/ready state. Depending on the state we show the
+            /// appropriate button or loading indicator.
+            StreamBuilder<PlayerState>(
+              stream: player.playerStateStream,
+              builder: (context, snapshot) {
+                final playerState = snapshot.data;
+                final processingState = playerState?.processingState;
+                final playing = playerState?.playing;
+                if (processingState == ProcessingState.loading ||
+                    processingState == ProcessingState.buffering) {
+                  return Container(
+                    margin: const EdgeInsets.all(8.0),
+                    width: 64.0,
+                    height: 64.0,
+                    child: const CircularProgressIndicator(),
+                  );
+                } else if (playing != true) {
+                  return IconButton(
+                    icon: const Icon(Icons.play_arrow),
+                    iconSize: 64.0,
+                    onPressed: player.play,
+                  );
+                } else if (processingState != ProcessingState.completed) {
+                  return IconButton(
+                    icon: const Icon(Icons.pause),
+                    iconSize: 64.0,
+                    onPressed: player.pause,
+                  );
+                } else {
+                  return IconButton(
+                    icon: const Icon(Icons.replay),
+                    iconSize: 64.0,
+                    onPressed: () => player.seek(Duration.zero),
+                  );
+                }
+              },
+            ),
+            // Opens speed slider dialog
+            StreamBuilder<double>(
+              stream: player.speedStream,
+              builder: (context, snapshot) => IconButton(
+                icon: Text("${snapshot.data?.toStringAsFixed(1)}x",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  showSliderDialog(
+                    context: context,
+                    title: "Adjust speed",
+                    divisions: 10,
+                    min: 0.5,
+                    max: 1.5,
+                    value: player.speed,
+                    stream: player.speedStream,
+                    onChanged: player.setSpeed,
+                  );
+                },
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () async {
+                FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
+                if (result != null) {
+                  for (var file in result.files) {
+                    library.addMedia(Media('false', '', '', '', '', '', '', file.path!, false, 0));
+                  }
+                }
+              },
+            ),
+          ],
         ),
       ],
     );

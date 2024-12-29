@@ -12,7 +12,7 @@ import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 
 class Library extends ChangeNotifier {
   // Generic functions and comments helpfully provided by Supermaven
-  String dbPath = 'Library.db';
+  String dbPath = 'C:\Flutter\ShadePlayer\shade_player\media_library.db';
   final _random = Random(DateTime.now().millisecondsSinceEpoch);
   int indexShuffle = 0;
   List<Media> mediaList = [];
@@ -28,7 +28,7 @@ class Library extends ChangeNotifier {
     var db = await databaseFactory.openDatabase(dbPath);
     final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
     if (mediaExists.isNotEmpty) {
-      await db.close();
+      //await db.close();
       return;
     }
     Map<String, dynamic> mediaMap = {
@@ -43,7 +43,7 @@ class Library extends ChangeNotifier {
       'playCount': media.playCount,
     };
     db.insert('media', mediaMap);
-    await db.close();
+    //await db.close();
     mediaList.add(media);
     notifyListeners();
   }
@@ -56,11 +56,11 @@ class Library extends ChangeNotifier {
     var db = await databaseFactory.openDatabase(dbPath);
     final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
     if (mediaExists.isEmpty) {
-      await db.close();
+      //await db.close();
       return;
     }
     db.delete('media', where: 'path = ?', whereArgs: [media.path]);
-    await db.close();
+    //await db.close();
     notifyListeners();
   }
 
@@ -73,14 +73,14 @@ class Library extends ChangeNotifier {
     var entries = await db.query('media');
     for (var entry in entries) {
       mediaList.add(Media(entry['shuffle'].toString(), entry['title'].toString(), entry['artist'].toString(), entry['album'].toString(),
-       entry['genre'].toString(), entry['year'].toString(), entry['duration'].toString(), entry['path'].toString(), false));
+       entry['genre'].toString(), entry['year'].toString(), entry['duration'].toString(), entry['path'].toString(), false, int.parse(entry['playCount'].toString())));
     }
-    await db.close();
+    //await db.close();
   }
 
   Media getNext() {
     if (mediaList.isEmpty) {
-      return Media('false', '', '', '', '', '', '', '', false);
+      return Media('false', '', '', '', '', '', '', '', false, 0);
       //throw Exception('No media in library');
     }
     // Locate an entry on the search list that is not playing and has a shuffle value of true.
@@ -104,22 +104,51 @@ class Library extends ChangeNotifier {
       return mediaList.first;
     }
   }
+
+  void toggleShuffle(Media media) async{
+    if (media.shuffle == 'true') {
+      media.shuffle = 'false';
+    } else {
+      media.shuffle = 'true';
+    }
+    var databaseFactory = databaseFactoryFfi; // Potential: Add logic for handling other platforms
+    var db = await databaseFactory.openDatabase(dbPath);
+    final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
+    if (mediaExists.isEmpty) {
+      await db.close();
+      return;
+    }
+    Map<String, dynamic> mediaMap = {
+      'shuffle': media.shuffle,
+      'title': media.title,
+      'artist': media.artist,
+      'album': media.album,
+      'genre': media.genre,
+      'year': media.year,
+      'duration': media.duration,
+      'path': media.path,
+      'playCount': media.playCount,
+    };
+    db.update('media', mediaMap, where: 'path = ?', whereArgs: [media.path]);
+    db.close();
+    notifyListeners();
+  }
 }
 
 class Media extends ChangeNotifier {
   String shuffle = 'true';
-  String title = "";
-  String artist = "";
-  String album = "";
-  String genre = "";
-  String year = "";
-  String duration = "";
+  String title = "Untitled";
+  String artist = "Unknown Artist";
+  String album = "Unknown Album";
+  String genre = "Unknown Genre";
+  String year = "Unknown Year";
+  String duration = "Unknown Duration";
   String path = "";
   // Potential: Support manipulating album art
   bool isPlaying = false;
   int playCount = 0;
-
-  Media(this.shuffle,this.title, this.artist, this.album, this.genre, this.year, this.duration, this.path, this.isPlaying);
+  
+  Media(this.shuffle,this.title, this.artist, this.album, this.genre, this.year, this.duration, this.path, this.isPlaying, this.playCount);
 
   void populateMetadata() async {
     final metadata = await MetadataRetriever.fromFile(File(path));
@@ -136,6 +165,7 @@ class Media extends ChangeNotifier {
     if (metadata.year != null) year = metadata.year!.toString();
     if (metadata.trackDuration != null) duration = metadata.trackDuration!.toString();
   }
+
   void setShuffle(String shuffle) {
     if (shuffle.toLowerCase() != 'true' && shuffle.toLowerCase() != 'false') {
       throw Exception('Shuffle must be true or false');

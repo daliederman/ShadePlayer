@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio/common.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:shade_player/media_library.dart';
 
 void main() => runApp(const ShadePlayer());
 
@@ -16,6 +17,9 @@ class ShadePlayer extends StatefulWidget {
 
 class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   final _player = AudioPlayer();
+  final _library = Library();
+  int indexPage = 0;
+  late Media currentMedia;
 
   @override
   void initState() {
@@ -29,9 +33,9 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 
   Future<void> _init() async {
     // Inform the operating system of our app's audio attributes etc.
-    // We pick a reasonable default for an app that plays speech.
+    // We pick a reasonable default for an app that plays music.
     final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.speech());
+    await session.configure(const AudioSessionConfiguration.music());
     // Listen to errors during playback.
     _player.playbackEventStream.listen((event) {},
         onError: (Object e, StackTrace stackTrace) {
@@ -40,8 +44,8 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     // Try to load audio from a source and catch any errors.
     try {
       // AAC example: https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.aac
-      await _player.setAudioSource(AudioSource.uri(Uri.parse(
-          "https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3")));
+      // MP3 example: https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3
+      await _player.setAudioSource(AudioSource.file(_library.getNext().path));
     } on PlayerException catch (e) {
       print("Error loading audio source: $e");
     }
@@ -79,18 +83,41 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      //title: 'Shade Media Player',
-      //theme: ThemeData(
-      //  colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
-      //  useMaterial3: true,
-      //),
-      //home: const ShadeMainPage(title: 'Shade Player Main Page'),
-      debugShowCheckedModeBanner: true,
+      title: 'Shade Media Player',
+      theme: ThemeData(
+        colorScheme: ColorScheme.dark(),
+        useMaterial3: true,
+      ),
+      
+      debugShowCheckedModeBanner: false, //Places the debug stripe at the corner of the app while debugging
       home: Scaffold(
-        body: SafeArea(
-          child: Column(
+        body: Row(
+          children: [
+            /*
+            SafeArea(
+              child: NavigationBar(
+                destinations: [
+                  NavigationDestination(
+                    icon: Icon(Icons.disc_full), 
+                    label: 'Media',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.settings), 
+                    label: 'Settings',
+                  ),
+                ],
+                selectedIndex: indexPage,
+                onDestinationSelected: (value) {
+                  setState(() {
+                    indexPage = value;
+                  });
+                },
+              ),
+            ),
+            */
+            Column(
             crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
               // Display play/pause button and volume/speed sliders.
               ControlButtons(_player),
@@ -111,6 +138,9 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
               ),
             ],
           ),
+            ],
+
+
         ),
       ),
     );
@@ -215,14 +245,52 @@ class ShadeMainPage extends StatefulWidget {
   final String title;
 
   @override
-  State<ShadeMainPage> createState() => _MyHomePageState();
+  State<ShadeMainPage> createState() => _ShadeMainPageState();
 }
 
-class _MyHomePageState extends State<ShadeMainPage> {
+class _ShadeMainPageState extends State<ShadeMainPage> {
+  int indexPage = 0;
+
   @override
   Widget build(BuildContext context) {
+    Widget page;
+      switch (indexPage) {
+        case 0:
+          page = PageLibrary();
+        case 1:
+          page = PageSettings();
+        default:
+          throw UnimplementedError('No widget for index: $indexPage');
+      }
+
+      return LayoutBuilder(builder: (context, constraints) {
+        return Scaffold(
+          body:Row(
+            children: [
+              //SafeArea(child: child)
+            ],
+          )
+        );
+      });
+  }
+}
+
+class PageLibrary extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    
+
     // TODO: implement build
     throw UnimplementedError();
   }
+}
 
+class PageSettings extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    
+
+    // TODO: implement build
+    throw UnimplementedError();
+  }
 }

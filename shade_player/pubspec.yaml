@@ -30,6 +30,7 @@ dependencies:
   just_audio_windows: ^0.2.2
   flutter_riverpod: ^2.6.1
   sqflite_common_ffi: ^2.3.4+4
+  flutter_media_metadata: ^1.0.0+1
 
 dev_dependencies:
   flutter_test:

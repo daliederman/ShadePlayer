@@ -26,7 +26,7 @@ class Library extends ChangeNotifier {
       print("Database file does not exist at path: $dbPath, attempting to create");
     }
     db = await databaseFactory.openDatabase(dbPath);
-    await db.execute('CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, shuffle TEXT, title TEXT, artist TEXT, album TEXT, genre TEXT, year TEXT, duration TEXT, path TEXT, INTEGER playcount)');
+    await db.execute('CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, shuffle TEXT, title TEXT, artist TEXT, album TEXT, genre TEXT, year TEXT, duration TEXT, path TEXT, playcount INTEGER)');
     print('Database loaded');
     return true;
   }
@@ -85,7 +85,7 @@ class Library extends ChangeNotifier {
     var entries = await db.query('media');
     for (var entry in entries) {
       mediaList.add(Media(entry['shuffle'].toString(), entry['title'].toString(), entry['artist'].toString(), entry['album'].toString(),
-       entry['genre'].toString(), entry['year'].toString(), entry['duration'].toString(), entry['path'].toString(), false, int.parse(entry['playCount'].toString())));
+       entry['genre'].toString(), entry['year'].toString(), entry['duration'].toString(), entry['path'].toString(), false, int.parse(entry['playcount'].toString())));
     }
   }
 
@@ -138,10 +138,9 @@ class Library extends ChangeNotifier {
       'year': media.year,
       'duration': media.duration,
       'path': media.path,
-      'playCount': media.playCount,
+      'playcount': media.playCount,
     };
     db.update('media', mediaMap, where: 'path = ?', whereArgs: [media.path]);
-    db.close();
     notifyListeners();
   }
 

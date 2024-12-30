@@ -286,7 +286,7 @@ class ControlButtons extends StatelessWidget {
                 FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
                 if (result != null) {
                   for (var file in result.files) {
-                    library.addMedia(Media('false', '', '', '', '', '', '', file.path!, false, 0));
+                    library.addMedia(await library.newMedia(file.path!));
                   }
                 }
               },
@@ -339,7 +339,7 @@ class PageLibrary extends StatelessWidget {
   Widget build(BuildContext context) {
     
 
-    // TODO: implement build
+    //  implement build
     throw UnimplementedError();
   }
 }
@@ -349,7 +349,7 @@ class PageSettings extends StatelessWidget {
   Widget build(BuildContext context) {
     
 
-    // TODO: implement build
+    // implement build
     throw UnimplementedError();
   }
 }

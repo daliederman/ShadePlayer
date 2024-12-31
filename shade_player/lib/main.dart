@@ -6,8 +6,17 @@ import 'package:just_audio/common.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shade_player/media_library.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:window_size/window_size.dart';
+import 'helpers_ui.dart';
 
-void main() => runApp(const ShadePlayer());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (true) {
+    setWindowMinSize(const Size(200, 200));
+  }
+  runApp(const ShadePlayer());
+}
 
 class ShadePlayer extends StatefulWidget {
   const ShadePlayer({super.key});
@@ -61,9 +70,16 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     }
     try {
       await _library.loadLibraryFile();
+      setState(() {
+        sortedMedia = _library.sortBy('artist');
+      });
       for (var media in _library.mediaList) {
         if (media.shuffle == 'true' && media.path != '') {
           await _playlist.add(AudioSource.uri(Uri.file(media.path), tag: media));
+          if (media.shuffle == 'true') {
+            await _player.setShuffleModeEnabled(true);
+            await _player.shuffle();
+          }
         }
       }
     } on Exception catch (e) {
@@ -99,8 +115,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     }
   }
 
-  // A brute force workaround for shuffle mode resetting to false after any player rebuild
-  // ... Which does not work, shuffle is toggled every frame.
+  // A brute force workaround for shuffle mode not being supported by just_audio_windows
   void _ensureShuffle() async {
     if (_isShuffleEnabled && !_player.shuffleModeEnabled) {
       await _player.setShuffleModeEnabled(true);
@@ -138,7 +153,6 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    sortedMedia = _library.sortBy('Artist');
     return MaterialApp(
       title: 'Shade Media Player',
       theme: ThemeData(
@@ -148,58 +162,18 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       
       debugShowCheckedModeBanner: false, //Places the debug stripe at the corner of the app while debugging
       home: Scaffold(
-        body: ListView.builder(itemCount: sortedMedia.length, itemBuilder: (context, i) {
-          IconData icon = Icons.shuffle;
-          if (sortedMedia[i].shuffle == 'true') {
-            icon = Icons.shuffle_on;
-          }
-          if (sortedMedia[i].isPlaying) {
-            //icon = Icons.play_arrow;
-            
-          }
-          return Row(
-            children: [
-              IconButton(
-                icon: Icon(icon),
-                onPressed: () {
-                  _library.toggleShuffle(sortedMedia[i]);
-                },
-              ),
-              Flexible(flex: titleWidth, child: Text(sortedMedia[i].title)),
-              Flexible(flex: durationWidth, child: Text(sortedMedia[i].duration)),
-              Flexible(flex: artistWidth, child: Text(sortedMedia[i].artist)),
-              Flexible(flex: albumWidth, child: Text(sortedMedia[i].album)),
-            ],
-          );
-        }),
-        
-        /*Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              height: 96,
-              width: 96,
-              child: NavigationRail(destinations: [
-              NavigationRailDestination(
-                icon: Icon(Icons.disc_full), 
-                label: Text('Media'), // rail format
-                //label: 'Media', // bar format
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings), 
-                label: Text('Settings'), // rail format
-                //label: 'Settings', // bar format
-              ),
-            ], selectedIndex: indexPage, onDestinationSelected: (value) {
-              setState(() {
-                indexPage = value;
-              });
-            })),
-
-          ],
-        ),*/
-        bottomNavigationBar: SafeArea(
+        body: sortedMedia.isEmpty
+        ? Center(child: Icon(Icons.music_note, size: 200)) 
+        : Container(
+            alignment: Alignment.center,
+            height: MediaQuery.of(context).size.height * 0.9,
+            width: MediaQuery.of(context).size.width * 1,
+            decoration: BoxDecoration(border: Border.all(), borderRadius: BorderRadius.circular(4)),
+            child: SortedMediaList(sortedMedia, _player, _playlist, _library)
+          ),
+        bottomNavigationBar: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          height: 170,
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.end,
@@ -223,7 +197,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
                 ),
               ],
             ),
-        ),
+          ),
       ),
     );
   }
@@ -398,58 +372,52 @@ class ShuffleButton extends StatelessWidget {
   }
 }
 
-//Unused
-class ShadeMainPage extends StatefulWidget {
-  const ShadeMainPage({super.key, required this.title});
-  final String title;
+class SortedMediaList extends StatelessWidget {
+  final Library library;
+  final List<Media> sortedMedia;
+  final AudioPlayer player;
+  final ConcatenatingAudioSource playlist;
 
-  @override
-  State<ShadeMainPage> createState() => _ShadeMainPageState();
-}
-
-class _ShadeMainPageState extends State<ShadeMainPage> {
-  int indexPage = 0;
+  SortedMediaList(this.sortedMedia, this.player, this.playlist, this.library, {super.key});
 
   @override
   Widget build(BuildContext context) {
-    Widget page;
-      switch (indexPage) {
-        case 0:
-          page = PageLibrary();
-        case 1:
-          page = PageSettings();
-        default:
-          throw UnimplementedError('No widget for index: $indexPage');
-      }
-
-      return LayoutBuilder(builder: (context, constraints) {
-        return Scaffold(
-          body:Row(
+    return ListView.builder(
+      itemCount: sortedMedia.length,
+      itemBuilder: (context, index) {
+        final media = sortedMedia[index];
+        return ListTile(
+          leading: IconButton(
+            icon: Icon(media.shuffle == 'true' ? Icons.check : Icons.check_box_outline_blank, size: 14,),
+            onPressed: () {
+              library.toggleShuffle(media);
+            }
+          ),
+          title: Row(
+            mainAxisSize: MainAxisSize.max,
             children: [
-              //SafeArea(child: child)
+              Text('${media.artist} - ${media.title}', textScaler: TextScaler.linear(0.8),),
             ],
-          )
+          ),
+          subtitle: Text(media.album, textScaler: TextScaler.linear(0.8),),
+          trailing: Text(formatDuration(int.parse(media.duration))),
+          onTap: () async {
+            int? position;
+            for (int i = 0; i < playlist.length; i++) {
+              final source = playlist[i] as UriAudioSource;
+              if (source.uri.path == media.path) {
+                position = i;
+                break;
+              }
+            }
+
+            if (position != null) {
+              await player.seek(Duration.zero, index: position);
+              player.play();
+            }
+          },
         );
-      });
-  }
-}
-
-class PageLibrary extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    
-
-    //  implement build
-    throw UnimplementedError();
-  }
-}
-
-class PageSettings extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    
-
-    // implement build
-    throw UnimplementedError();
+      },
+    );
   }
 }

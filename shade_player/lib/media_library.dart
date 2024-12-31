@@ -139,11 +139,7 @@ class Library extends ChangeNotifier {
   }
 
   void toggleShuffle(Media media) async{
-    if (media.shuffle == 'true') {
-      media.shuffle = 'false';
-    } else {
-      media.shuffle = 'true';
-    }
+    media.shuffle == 'true' ? media.shuffle = 'false' : media.shuffle = 'true';
     final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
     if (mediaExists.isEmpty) {
       await db.close();
@@ -177,6 +173,7 @@ class Library extends ChangeNotifier {
   List<Media> sortBy(String sortField) {
     sortField = sortField.toLowerCase();
     List<Media> sorted = List.of(mediaList);
+    if (mediaList.isEmpty) print ('No media in library');
 
     sorted.sort((a, b) {
 	  	int pComparison;
@@ -211,14 +208,14 @@ class Library extends ChangeNotifier {
 	  
 	  	// If primary fields are equal, sort by the secondary field
 	  	if (pComparison == 0) {
-	  		String secField = 'track';
+	  		String secField = 'album';
 	  		if (a.track == b.track) {
 	  			if (a.title != b.title) {
-	  				secField = 'title';
+	  				secField = 'track';
 	  			} else if (a.artist != b.artist) {
-	  				secField = 'artist';
+	  				secField = 'title';
 	  			} else if (a.album != b.album) {
-	  				secField = 'album';
+	  				secField = 'artist';
 	  			} else if (a.genre != b.genre) {
 	  				secField = 'genre';
 	  			} else if (a.year != b.year) {

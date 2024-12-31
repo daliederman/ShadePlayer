@@ -6,15 +6,10 @@ import 'package:just_audio/common.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shade_player/media_library.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:window_size/window_size.dart';
 import 'helpers_ui.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (true) {
-    setWindowMinSize(const Size(200, 200));
-  }
   runApp(const ShadePlayer());
 }
 
@@ -70,18 +65,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     }
     try {
       await _library.loadLibraryFile();
-      setState(() {
-        sortedMedia = _library.sortBy('artist');
-      });
-      for (var media in _library.mediaList) {
-        if (media.shuffle == 'true' && media.path != '') {
-          await _playlist.add(AudioSource.uri(Uri.file(media.path), tag: media));
-          if (media.shuffle == 'true') {
-            await _player.setShuffleModeEnabled(true);
-            await _player.shuffle();
-          }
-        }
-      }
+      await preparePlaylist();
     } on Exception catch (e) {
       print("Error loading library file: $e");
     }
@@ -103,6 +87,26 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       await _player.load();
     } on PlayerException catch (e) {
       print("Error loading audio source: $e");
+    }
+  }
+
+  Future<void> preparePlaylist() async {
+    setState(() {
+      sortedMedia = _library.sortBy('artist');
+    });
+    shufflePlaylistFresh();
+  }
+
+  Future<void> shufflePlaylistFresh() async {
+    await _playlist.clear();
+    for (var media in _library.mediaList) {
+      if (media.shuffle == 'true' && media.path != '') {
+        await _playlist.add(AudioSource.uri(Uri.file(media.path), tag: media));
+        if (media.shuffle == 'true') {
+          await _player.setShuffleModeEnabled(true);
+          await _player.shuffle();
+        }
+      }
     }
   }
 
@@ -169,7 +173,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
             height: MediaQuery.of(context).size.height * 0.9,
             width: MediaQuery.of(context).size.width * 1,
             decoration: BoxDecoration(border: Border.all(), borderRadius: BorderRadius.circular(4)),
-            child: SortedMediaList(sortedMedia, _player, _playlist, _library)
+            child: SortedMediaList(sortedMedia, _player, _playlist, _library, shufflePlaylistFresh)
           ),
         bottomNavigationBar: SizedBox(
           width: MediaQuery.of(context).size.width,
@@ -179,7 +183,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Display play/pause button and volume/speed sliders.
-                ControlButtons(_player, _library, _playlist, _toggleShuffle, _ensureShuffle),
+                ControlButtons(_player, _library, _playlist, _toggleShuffle, _ensureShuffle, preparePlaylist),
                 // Display seek bar. Using StreamBuilder, this widget rebuilds
                 // each time the position, buffered position or duration changes.
                 StreamBuilder<PositionData>(
@@ -210,8 +214,9 @@ class ControlButtons extends StatelessWidget {
   final ConcatenatingAudioSource playlist;
   final VoidCallback ensureShuffle;
   final VoidCallback toggleShuffle;
+  final Future<void> Function() preparePlaylist;
 
-  const ControlButtons(this.player, this.library, this.playlist, this.ensureShuffle, this.toggleShuffle, {super.key});
+  const ControlButtons(this.player, this.library, this.playlist, this.ensureShuffle, this.toggleShuffle, this.preparePlaylist, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -323,19 +328,20 @@ class ControlButtons extends StatelessWidget {
                 Flex(
                   direction: Axis.horizontal,
                   mainAxisAlignment: MainAxisAlignment.end,
-                  children: [IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () async {
-                      FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
-                      if (result != null) {
-                        for (var file in result.files) {
-                          library.addMedia(await library.newMedia(file.path!));
-                          playlist.add(AudioSource.file(file.path!));
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () async {
+                        FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
+                        if (result != null) {
+                          for (var file in result.files) {
+                            library.addMedia(await library.newMedia(file.path!));
+                          }
+                          preparePlaylist();
                         }
-                        player.shuffle();
-                      }
-                    },
-                  ),]
+                      },
+                    ),
+                  ]
                 ),
               ],
             ),
@@ -372,48 +378,65 @@ class ShuffleButton extends StatelessWidget {
   }
 }
 
-class SortedMediaList extends StatelessWidget {
+class SortedMediaList extends StatefulWidget {
   final Library library;
   final List<Media> sortedMedia;
   final AudioPlayer player;
   final ConcatenatingAudioSource playlist;
+  final Future<void> Function() shufflePlaylistFresh;
 
-  SortedMediaList(this.sortedMedia, this.player, this.playlist, this.library, {super.key});
+  SortedMediaList(this.sortedMedia, this.player, this.playlist, this.library, this.shufflePlaylistFresh, {super.key});
 
+  @override
+  State<SortedMediaList> createState() => _SortedMediaListState();
+}
+
+class _SortedMediaListState extends State<SortedMediaList> {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      itemCount: sortedMedia.length,
+      itemCount: widget.sortedMedia.length,
       itemBuilder: (context, index) {
-        final media = sortedMedia[index];
+        final media = widget.sortedMedia[index];
         return ListTile(
           leading: IconButton(
             icon: Icon(media.shuffle == 'true' ? Icons.check : Icons.check_box_outline_blank, size: 14,),
             onPressed: () {
-              library.toggleShuffle(media);
+              setState(() {
+                widget.library.toggleShuffle(media);
+              });
+              if (media.shuffle == 'true') {
+                //TODO: rebuild playlist but also restore the current track/duration
+                //widget.shufflePlaylistFresh();
+              }
             }
           ),
           title: Row(
             mainAxisSize: MainAxisSize.max,
             children: [
-              Text('${media.artist} - ${media.title}', textScaler: TextScaler.linear(0.8),),
+              Text('${media.artist} - ${media.title}', textScaler: TextScaler.linear(0.8)),
             ],
           ),
           subtitle: Text(media.album, textScaler: TextScaler.linear(0.8),),
           trailing: Text(formatDuration(int.parse(media.duration))),
           onTap: () async {
             int? position;
-            for (int i = 0; i < playlist.length; i++) {
-              final source = playlist[i] as UriAudioSource;
-              if (source.uri.path == media.path) {
+
+            // TODO: Rebuild the playlist from the desired track
+
+            for (int i = 0; i < widget.playlist.length; i++) {
+              final source = widget.playlist[i] as UriAudioSource;
+              if (source.tag == media) {
                 position = i;
                 break;
               }
             }
 
             if (position != null) {
-              await player.seek(Duration.zero, index: position);
-              player.play();
+              await widget.player.seek(Duration.zero, index: position);
+              widget.player.play();
+            } else {
+              print('Media not found in playlist');
             }
           },
         );

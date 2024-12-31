@@ -46,24 +46,8 @@ class Library extends ChangeNotifier {
     } else {
       print('Adding ${media.path} to database');
     }
-    Map<String, dynamic> mediaMap = {
-      'shuffle': media.shuffle,
-      'title': media.title,
-      'artist': media.artist,
-      'album': media.album,
-      'track': media.track,
-      'genre': media.genre,
-      'year': media.year,
-      'duration': media.duration,
-      'path': media.path,
-      'playcount': media.playCount,
-    };
-    /*
-    for (var entry in mediaMap.entries) {
-      print(entry.key);
-      print(entry.value);
-    }*/
-    db.insert('media', mediaMap);
+
+    db.insert('media', media.toMap());
     mediaList.add(media);
     notifyListeners();
   }

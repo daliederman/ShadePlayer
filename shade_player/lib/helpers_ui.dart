@@ -1,7 +1,5 @@
 // Store helper functions for UI
 
-import 'package:flutter/material.dart';
-
 String formatDuration(int milliseconds) {
   final duration = Duration(milliseconds: milliseconds);
   String twoDigits(int n) => n.toString().padLeft(2, '0');

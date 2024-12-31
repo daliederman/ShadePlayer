@@ -19,8 +19,13 @@ class ShadePlayer extends StatefulWidget {
 class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   final _player = AudioPlayer();
   final _library = Library();
+  final _playlist = ConcatenatingAudioSource(
+    useLazyPreparation: true,
+    shuffleOrder: DefaultShuffleOrder(),
+    children: [],
+  );
   int iPage = 0;
-  Media currentMedia = Media('false', '', '', '', 0, '', '', '', '', false, 0);
+  //Media currentMedia = Media('false', '', '', '', 0, '', '', '', '', false, 0);
   List<Media> sortedMedia = [];
 
   int titleWidth = 100;
@@ -50,6 +55,11 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     });
     try {
       await _library.loadLibraryFile();
+      for (var media in _library.mediaList) {
+        if (media.shuffle == 'true' && media.path != '') {
+          await _playlist.add(AudioSource.uri(Uri.file(media.path), tag: media));
+        }
+      }
     } on Exception catch (e) {
       print("Error loading library file: $e");
     }
@@ -63,9 +73,12 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
     try {
       // AAC example: https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.aac
       // MP3 example: https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3
-      currentMedia = _library.getNext();
-      String path = currentMedia.path;
-      if (path != '') await _player.setAudioSource(AudioSource.file(path));
+      //currentMedia = _library.getNext();
+      //_library.setPlaying(currentMedia, true);
+      //String path = currentMedia.path;
+      //if (path != '') await _player.setAudioSource();
+      await _player.setAudioSource(_playlist);
+      await _player.load();
     } on PlayerException catch (e) {
       print("Error loading audio source: $e");
     }
@@ -169,7 +182,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Display play/pause button and volume/speed sliders.
-                ControlButtons(_player, _library, currentMedia),
+                ControlButtons(_player, _library, _playlist),
                 // Display seek bar. Using StreamBuilder, this widget rebuilds
                 // each time the position, buffered position or duration changes.
                 StreamBuilder<PositionData>(
@@ -196,133 +209,172 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 /// Displays the play/pause button and volume/speed sliders.
 class ControlButtons extends StatelessWidget {
   final AudioPlayer player;
-  final Media media;
   final Library library;
+  final ConcatenatingAudioSource playlist;
 
-  const ControlButtons(this.player, this.library, this.media, {super.key});
+  const ControlButtons(this.player, this.library, this.playlist, {super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text('${media.artist} - ${media.title}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+    return StreamBuilder<SequenceState?>(
+      stream: player.sequenceStateStream,
+      builder: (context, snapshot) {
+        final media = snapshot.data?.currentSource?.tag as Media?;
+
+        return Column(
           children: [
-            // Previous button
-            IconButton(
-              icon: const Icon(Icons.skip_previous),
-              onPressed: () {
-                player.seek(Duration.zero); // TODO: Seek to previous track
-              },
-            ),
-            // Opens volume slider dialog
-            IconButton(
-              icon: const Icon(Icons.volume_up),
-              onPressed: () {
-                showSliderDialog(
-                  context: context,
-                  title: "Adjust volume",
-                  divisions: 10,
-                  min: 0.0,
-                  max: 1.0,
-                  value: player.volume,
-                  stream: player.volumeStream,
-                  onChanged: player.setVolume,
-                );
-              },
-            ),
-        
-            /// This StreamBuilder rebuilds whenever the player state changes, which
-            /// includes the playing/paused state and also the
-            /// loading/buffering/ready state. Depending on the state we show the
-            /// appropriate button or loading indicator.
-            StreamBuilder<PlayerState>(
-              stream: player.playerStateStream,
-              builder: (context, snapshot) {
-                final playerState = snapshot.data;
-                final processingState = playerState?.processingState;
-                final playing = playerState?.playing;
-                if (processingState == ProcessingState.loading ||
-                    processingState == ProcessingState.buffering) {
-                  return Container(
-                    margin: const EdgeInsets.all(8.0),
-                    width: 64.0,
-                    height: 64.0,
-                    child: const CircularProgressIndicator(),
-                  );
-                } else if (playing != true) {
-                  return IconButton(
-                    icon: const Icon(Icons.play_arrow),
-                    iconSize: 64.0,
-                    onPressed: player.play,
-                  );
-                } else if (processingState != ProcessingState.completed) {
-                  return IconButton(
-                    icon: const Icon(Icons.pause),
-                    iconSize: 64.0,
-                    onPressed: player.pause,
-                  );
-                } else {
-                  return IconButton(
-                    icon: const Icon(Icons.replay),
-                    iconSize: 64.0,
-                    onPressed: () => player.seek(Duration.zero),
-                  );
-                }
-              },
-            ),
-            // Opens speed slider dialog
-            StreamBuilder<double>(
-              stream: player.speedStream,
-              builder: (context, snapshot) => IconButton(
-                icon: Text("${snapshot.data?.toStringAsFixed(1)}x",
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  showSliderDialog(
-                    context: context,
-                    title: "Adjust speed",
-                    divisions: 10,
-                    min: 0.5,
-                    max: 1.5,
-                    value: player.speed,
-                    stream: player.speedStream,
-                    onChanged: player.setSpeed,
-                  );
-                },
-              ),
-            ),
-            // Forward button
-            IconButton(
-              icon: const Icon(Icons.fast_forward),
-              onPressed: () {
-                player.seek(player.duration); // TODO: Seek to next track
-              },
-            ),
-            // Add button
-            Flex(
-              direction: Axis.horizontal,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () async {
-                  FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
-                  if (result != null) {
-                    for (var file in result.files) {
-                      library.addMedia(await library.newMedia(file.path!));
+            // Get current track title and artist
+            
+            Text('${media?.artist} - ${media?.title}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ShuffleButton(player),
+                // Previous button
+                IconButton(
+                  icon: const Icon(Icons.skip_previous),
+                  onPressed: () {
+                    player.seek(Duration.zero); // TODO: Seek to previous track
+                  },
+                ),
+                // Opens volume slider dialog
+                IconButton(
+                  icon: const Icon(Icons.volume_up),
+                  onPressed: () {
+                    showSliderDialog(
+                      context: context,
+                      title: "Adjust volume",
+                      divisions: 10,
+                      min: 0.0,
+                      max: 1.0,
+                      value: player.volume,
+                      stream: player.volumeStream,
+                      onChanged: player.setVolume,
+                    );
+                  },
+                ),
+            
+                /// This StreamBuilder rebuilds whenever the player state changes, which
+                /// includes the playing/paused state and also the
+                /// loading/buffering/ready state. Depending on the state we show the
+                /// appropriate button or loading indicator.
+                StreamBuilder<PlayerState>(
+                  stream: player.playerStateStream,
+                  builder: (context, snapshot) {
+                    final playerState = snapshot.data;
+                    final processingState = playerState?.processingState;
+                    final playing = playerState?.playing;
+                    if (processingState == ProcessingState.loading ||
+                        processingState == ProcessingState.buffering) {
+                      return Container(
+                        margin: const EdgeInsets.all(8.0),
+                        width: 64.0,
+                        height: 64.0,
+                        child: const CircularProgressIndicator(),
+                      );
+                    } else if (playing != true) {
+                      return IconButton(
+                        icon: const Icon(Icons.play_arrow),
+                        iconSize: 64.0,
+                        onPressed: player.play,
+                      );
+                    } else if (processingState != ProcessingState.completed) {
+                      return IconButton(
+                        icon: const Icon(Icons.pause),
+                        iconSize: 64.0,
+                        onPressed: player.pause,
+                      );
+                    } else {
+                      return IconButton(
+                        icon: const Icon(Icons.replay),
+                        iconSize: 64.0,
+                        onPressed: () => player.seek(Duration.zero),
+                      );
                     }
-                  }
-                },
-              ),]
+                  },
+                ),
+                // Opens speed slider dialog
+                StreamBuilder<double>(
+                  stream: player.speedStream,
+                  builder: (context, snapshot) => IconButton(
+                    icon: Text("${snapshot.data?.toStringAsFixed(1)}x",
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      showSliderDialog(
+                        context: context,
+                        title: "Adjust speed",
+                        divisions: 10,
+                        min: 0.5,
+                        max: 1.5,
+                        value: player.speed,
+                        stream: player.speedStream,
+                        onChanged: player.setSpeed,
+                      );
+                    },
+                  ),
+                ),
+                // Forward button
+                IconButton(
+                  icon: const Icon(Icons.fast_forward),
+                  onPressed: () {
+                    if (player.processingState == ProcessingState.completed) {
+                      player.seekToNext();
+                    }
+                  },
+                ),
+                // Add button
+                Flex(
+                  direction: Axis.horizontal,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () async {
+                      FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
+                      if (result != null) {
+                        for (var file in result.files) {
+                          library.addMedia(await library.newMedia(file.path!));
+                          playlist.add(AudioSource.file(file.path!));
+                        }
+                        player.shuffle();
+                      }
+                    },
+                  ),]
+                ),
+              ],
             ),
           ],
-        ),
-      ],
+        );
+      }
     );
   }
 }
 
+class ShuffleButton extends StatelessWidget {
+  final AudioPlayer player;
 
+  const ShuffleButton(this.player, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<bool>(
+      stream: player.shuffleModeEnabledStream,
+      builder: (context, snapshot) {
+        bool shuffleEnabled = snapshot.data ?? false;
+        return IconButton(
+          icon: Icon(shuffleEnabled ? Icons.shuffle_on : Icons.shuffle),
+          onPressed: () {
+            player.setShuffleModeEnabled(!shuffleEnabled);
+            if (shuffleEnabled) {
+              player.shuffle(); // Reshuffle the queue
+            }
+          },
+        );
+      },
+    );
+  }
+}
+
+//Unused
 class ShadeMainPage extends StatefulWidget {
   const ShadeMainPage({super.key, required this.title});
   final String title;

@@ -7,6 +7,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 
@@ -18,7 +19,6 @@ class Library extends ChangeNotifier {
   late Database db;
   int indexShuffle = 0;
   List<Media> mediaList = [];
-  List<Media> shuffleList = [];
   List<Media> searchList = [];
 
   Future<bool> loadDB() async {
@@ -58,10 +58,11 @@ class Library extends ChangeNotifier {
       'path': media.path,
       'playcount': media.playCount,
     };
+    /*
     for (var entry in mediaMap.entries) {
       print(entry.key);
       print(entry.value);
-    }
+    }*/
     db.insert('media', mediaMap);
     mediaList.add(media);
     notifyListeners();
@@ -83,12 +84,21 @@ class Library extends ChangeNotifier {
   Future loadLibraryFile() async {
     await loadDB();
     var dbMedia = await db.query('media');
+    int count = 0;
     for (var entry in dbMedia) {
-      print('Adding ${entry['path']} to media list');
+      if (!File(entry['path'].toString()).existsSync()) {
+        print('Could not find ${entry['path']}');
+        // We simply skip missing files
+        // await db.delete('media', where: 'path = ?', whereArgs: [entry['path']]);
+        continue;
+      }
+      //print('Adding ${entry['path']} to media list');
       mediaList.add(Media(entry['shuffle'].toString(), entry['title'].toString(), entry['artist'].toString(), entry['album'].toString(), int.parse(entry['track'].toString()),
        entry['genre'].toString(), entry['year'].toString(), entry['duration'].toString(), entry['path'].toString(), false, int.parse(entry['playcount'].toString())));
-       print('${mediaList.last.title} added to media list');
+      // print('${mediaList.last.title} added to media list');
+      count++;
     }
+    print('Loaded $count media entries from database');
   }
 
   Media getNext() {
@@ -108,6 +118,7 @@ class Library extends ChangeNotifier {
       }
       return potentialMedia.elementAt(_random.nextInt(potentialMedia.length));
     } else if (mediaList.isNotEmpty) {
+      // Unconstrained search references prepared shuffled media
       potentialMedia = mediaList.where((media) => !media.isPlaying && media.shuffle == 'true').toList();
       // Handle the case where there are no shuffled media in the media list.
       if (potentialMedia.isEmpty) {
@@ -117,6 +128,14 @@ class Library extends ChangeNotifier {
     } else {
       return mediaList.first;
     }
+  }
+
+  void setPlaying(Media media, bool isPlaying) {
+    media.isPlaying = isPlaying;
+    if (isPlaying) {
+      media.playCount++;
+    }
+    notifyListeners();
   }
 
   void toggleShuffle(Media media) async{
@@ -170,85 +189,96 @@ class Library extends ChangeNotifier {
     sortField = sortField.toLowerCase();
     List<Media> sorted = List.of(mediaList);
 
-	sorted.sort((a, b) {
-		int pComparison;
-		switch (sortField) {
-		case 'title':
-			pComparison = a.title.compareTo(b.title);
-			break;
-		case 'artist':
-			pComparison = a.artist.compareTo(b.artist);
-			break;
-		case 'album':
-			pComparison = a.album.compareTo(b.album);
-			break;
-    case 'track':
-      pComparison = a.track.compareTo(b.track);
-      break;
-		case 'genre':
-			pComparison = a.genre.compareTo(b.genre);
-			break;
-		case 'year':
-			pComparison = a.year.compareTo(b.year);
-			break;
-		case 'duration':
-			pComparison = int.parse(a.duration).compareTo(int.parse(b.duration));
-			break;
-		case 'playcount':
-			pComparison = a.playCount.compareTo(b.playCount);
-			break;
-		default:
-			throw Exception('Invalid sort field: $sortField');
-		}
-	
-		// If primary fields are equal, sort by the secondary field
-		if (pComparison == 0) {
-      String secField = 'track';
-      if (a.track == b.track) {
-        if (a.title != b.title) {
-          secField = 'title';
-        } else if (a.artist != b.artist) {
-          secField = 'artist';
-        } else if (a.album != b.album) {
-          secField = 'album';
-        } else if (a.genre != b.genre) {
-          secField = 'genre';
-        } else if (a.year != b.year) {
-          secField = 'year';
-        } else if (a.duration != b.duration) {
-          secField = 'duration';
-        } else if (a.playCount != b.playCount) {
-          secField = 'playcount';
-        } else {
-          // nothin, you're SOL. Your identical tracks will be random FOR ALL TIME!!!
-          // Or just until I add more fields. Which is probably also indefinite.
-        }
-      }
-		  switch (secField) {
-			case 'title':
-			  return a.title.compareTo(b.title);
-			case 'artist':
-			  return a.artist.compareTo(b.artist);
-			case 'album':
-			  return a.album.compareTo(b.album);
-      case 'track':
-        return a.track.compareTo(b.track);
-			case 'genre':
-			  return a.genre.compareTo(b.genre);
-			case 'year':
-			  return a.year.compareTo(b.year);
-			case 'duration':
-			  return int.parse(a.duration).compareTo(int.parse(b.duration));
-			case 'playcount':
-			  return a.playCount.compareTo(b.playCount);
-			default:
-			  throw Exception('Invalid secondary sort field: $secField');
-		  }
-		}
-	
-		return pComparison;
-	});
+    sorted.sort((a, b) {
+	  	int pComparison;
+	  	switch (sortField) {
+	  		case 'title':
+	  			pComparison = a.title.compareTo(b.title);
+	  			break;
+	  		case 'artist':
+	  			pComparison = a.artist.compareTo(b.artist);
+	  			break;
+	  		case 'album':
+	  			pComparison = a.album.compareTo(b.album);
+	  			break;
+	  		case 'track':
+	  			pComparison = a.track.compareTo(b.track);
+	  			break;
+	  		case 'genre':
+	  			pComparison = a.genre.compareTo(b.genre);
+	  			break;
+	  		case 'year':
+	  			pComparison = a.year.compareTo(b.year);
+	  			break;
+	  		case 'duration':
+	  			pComparison = int.parse(a.duration).compareTo(int.parse(b.duration));
+	  			break;
+	  		case 'playcount':
+	  			pComparison = a.playCount.compareTo(b.playCount);
+	  			break;
+	  		default:
+	  			throw Exception('Invalid sort field: $sortField');
+	  	}
+	  
+	  	// If primary fields are equal, sort by the secondary field
+	  	if (pComparison == 0) {
+	  		String secField = 'track';
+	  		if (a.track == b.track) {
+	  			if (a.title != b.title) {
+	  				secField = 'title';
+	  			} else if (a.artist != b.artist) {
+	  				secField = 'artist';
+	  			} else if (a.album != b.album) {
+	  				secField = 'album';
+	  			} else if (a.genre != b.genre) {
+	  				secField = 'genre';
+	  			} else if (a.year != b.year) {
+	  				secField = 'year';
+	  			} else if (a.duration != b.duration) {
+	  				secField = 'duration';
+	  			} else if (a.playCount != b.playCount) {
+	  				secField = 'playcount';
+	  			} else {
+	  				// nothin, you're SOL. Your identical tracks will be random FOR ALL TIME!!!
+	  				// Or just until I add more fields. Which is probably also indefinite.
+	  			}
+	  		}
+	  	  switch (secField) {
+	  		  case 'title':
+	  		    return a.title.compareTo(b.title);
+	  		  case 'artist':
+	  		    return a.artist.compareTo(b.artist);
+	  		  case 'album':
+	  		    return a.album.compareTo(b.album);
+	  		  case 'track':
+	  		  	return a.track.compareTo(b.track);
+	  		  case 'genre':
+	  		    return a.genre.compareTo(b.genre);
+	  		  case 'year':
+	  		    return a.year.compareTo(b.year);
+	  		  case 'duration':
+	  		    return int.parse(a.duration).compareTo(int.parse(b.duration));
+	  		  case 'playcount':
+	  		    return a.playCount.compareTo(b.playCount);
+	  		  default:
+	  		    throw Exception('Invalid secondary sort field: $secField');
+	  	  }
+	  	}
+	  
+	  	return pComparison;
+	  });
+  
     return sorted;
+  }
+
+  List<Media> getShuffled() {
+    List<Media> shuffled = [];
+    for (int i = 0; i < mediaList.length; i++) {
+      if (mediaList[i].shuffle == 'true') {
+        shuffled.add(mediaList[i]);
+      }
+    }
+    return shuffled;
   }
 }
 

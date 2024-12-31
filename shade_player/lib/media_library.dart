@@ -279,6 +279,31 @@ class Library extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  void setupPlayCountListener(AudioPlayer player) {
+
+    Media? currentMedia;
+
+    player.sequenceStateStream.listen((sequenceState) {
+      if (sequenceState == null) return;
+      final source = sequenceState.currentSource;
+    
+      final newMedia = source?.tag as Media?;
+    
+      if (newMedia != null && newMedia != currentMedia) {
+        // New track has started
+        currentMedia = newMedia;
+
+        // Increment play count only when playback starts
+        final playStateStream = player.playerStateStream.where((state) =>
+          state.playing && state.processingState == ProcessingState.ready);
+
+        playStateStream.listen((state) {
+          incrementPlayCount(currentMedia);
+        });
+      }
+    });
+  }
 }
 
 class Media extends ChangeNotifier {
@@ -329,11 +354,11 @@ class Media extends ChangeNotifier {
     if (metadata.trackDuration != null) setDuration(metadata.trackDuration!.toString());
   }
 
-  void setShuffle(String shuffle) {
-    if (shuffle.toLowerCase() != 'true' && shuffle.toLowerCase() != 'false') {
+  void setShuffle(String setTo) {
+    if (setTo.toLowerCase() != 'true' && setTo.toLowerCase() != 'false') {
       throw Exception('Shuffle must be true or false');
     }
-    this.shuffle = shuffle;
+    shuffle = setTo;
     notifyListeners();
   }
 

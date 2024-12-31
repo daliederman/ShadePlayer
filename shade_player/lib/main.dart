@@ -20,18 +20,19 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   final _player = AudioPlayer();
   final _library = Library();
   final _playlist = ConcatenatingAudioSource(
-    useLazyPreparation: true,
+    useLazyPreparation: false,
     shuffleOrder: DefaultShuffleOrder(),
     children: [],
   );
   int iPage = 0;
-  //Media currentMedia = Media('false', '', '', '', 0, '', '', '', '', false, 0);
   List<Media> sortedMedia = [];
 
   int titleWidth = 100;
   int durationWidth = 24;
   int artistWidth = 100;
-  int albumWidth = 100; 
+  int albumWidth = 100;
+
+  bool _isShuffleEnabled = true; // Replace with program setting
   
   @override
   void initState() {
@@ -53,6 +54,11 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
         onError: (Object e, StackTrace stackTrace) {
       print('A stream error occurred: $e');
     });
+    try {
+      _library.setupPlayCountListener(_player);
+    } catch (e) {
+      print("Error setting up play count listener: $e");
+    }
     try {
       await _library.loadLibraryFile();
       for (var media in _library.mediaList) {
@@ -81,6 +87,23 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       await _player.load();
     } on PlayerException catch (e) {
       print("Error loading audio source: $e");
+    }
+  }
+
+  // Toggle shuffle mode
+  void _toggleShuffle() async {
+    _isShuffleEnabled = !_isShuffleEnabled;
+    await _player.setShuffleModeEnabled(_isShuffleEnabled);
+    if (_isShuffleEnabled) {
+      await _player.shuffle();
+    }
+  }
+
+  // A brute force workaround for shuffle mode resetting to false after any player rebuild
+  // ... Which does not work, shuffle is toggled every frame.
+  void _ensureShuffle() async {
+    if (_isShuffleEnabled && !_player.shuffleModeEnabled) {
+      await _player.setShuffleModeEnabled(true);
     }
   }
 
@@ -182,7 +205,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Display play/pause button and volume/speed sliders.
-                ControlButtons(_player, _library, _playlist),
+                ControlButtons(_player, _library, _playlist, _toggleShuffle, _ensureShuffle),
                 // Display seek bar. Using StreamBuilder, this widget rebuilds
                 // each time the position, buffered position or duration changes.
                 StreamBuilder<PositionData>(
@@ -211,8 +234,10 @@ class ControlButtons extends StatelessWidget {
   final AudioPlayer player;
   final Library library;
   final ConcatenatingAudioSource playlist;
+  final VoidCallback ensureShuffle;
+  final VoidCallback toggleShuffle;
 
-  const ControlButtons(this.player, this.library, this.playlist, {super.key});
+  const ControlButtons(this.player, this.library, this.playlist, this.ensureShuffle, this.toggleShuffle, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -220,14 +245,13 @@ class ControlButtons extends StatelessWidget {
       stream: player.sequenceStateStream,
       builder: (context, snapshot) {
         final media = snapshot.data?.currentSource?.tag as Media?;
-
         return Column(
           children: [
             Text('${media?.artist} - ${media?.title}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ShuffleButton(player),
+                ShuffleButton(player, toggleShuffle),
                 // Previous button
                 IconButton(
                   icon: const Icon(Icons.skip_previous),
@@ -350,8 +374,9 @@ class ControlButtons extends StatelessWidget {
 
 class ShuffleButton extends StatelessWidget {
   final AudioPlayer player;
+  final VoidCallback toggleShuffle;
 
-  const ShuffleButton(this.player, {super.key});
+  const ShuffleButton(this.player, this.toggleShuffle, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -360,7 +385,7 @@ class ShuffleButton extends StatelessWidget {
       builder: (context, snapshot) {
         bool shuffleEnabled = snapshot.data ?? false;
         return IconButton(
-          icon: Icon(shuffleEnabled ? Icons.shuffle_on : Icons.shuffle),
+          icon: Icon(shuffleEnabled ? Icons.shuffle : Icons.shuffle_on),
           onPressed: () {
             player.setShuffleModeEnabled(!shuffleEnabled);
             if (shuffleEnabled) {

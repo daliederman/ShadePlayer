@@ -20,7 +20,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   final _player = AudioPlayer();
   final _library = Library();
   int iPage = 0;
-  Media currentMedia = Media('false', '', '', '', '', '', '', '', false, 0);
+  Media currentMedia = Media('false', '', '', '', 0, '', '', '', '', false, 0);
   List<Media> sortedMedia = [];
 
   int titleWidth = 100;
@@ -49,9 +49,14 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       print('A stream error occurred: $e');
     });
     try {
-      _library.loadLibraryFile();
+      await _library.loadLibraryFile();
     } on Exception catch (e) {
       print("Error loading library file: $e");
+    }
+    try {
+      sortedMedia = _library.sortBy('artist');
+    } on Exception catch (e) {
+      print("Error loading media list: $e");
     }
 
     // Try to load audio from a source and catch any errors.
@@ -97,7 +102,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    sortedMedia = _library.mediaList;
+    sortedMedia = _library.sortBy('Artist');
     return MaterialApp(
       title: 'Shade Media Player',
       theme: ThemeData(
@@ -204,6 +209,13 @@ class ControlButtons extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Previous button
+            IconButton(
+              icon: const Icon(Icons.skip_previous),
+              onPressed: () {
+                player.seek(Duration.zero); // TODO: Seek to previous track
+              },
+            ),
             // Opens volume slider dialog
             IconButton(
               icon: const Icon(Icons.volume_up),
@@ -280,16 +292,28 @@ class ControlButtons extends StatelessWidget {
                 },
               ),
             ),
+            // Forward button
             IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () async {
-                FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
-                if (result != null) {
-                  for (var file in result.files) {
-                    library.addMedia(await library.newMedia(file.path!));
-                  }
-                }
+              icon: const Icon(Icons.fast_forward),
+              onPressed: () {
+                player.seek(player.duration); // TODO: Seek to next track
               },
+            ),
+            // Add button
+            Flex(
+              direction: Axis.horizontal,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () async {
+                  FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.audio);
+                  if (result != null) {
+                    for (var file in result.files) {
+                      library.addMedia(await library.newMedia(file.path!));
+                    }
+                  }
+                },
+              ),]
             ),
           ],
         ),

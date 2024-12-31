@@ -26,7 +26,7 @@ class Library extends ChangeNotifier {
       print("Database file does not exist at path: $dbPath, attempting to create");
     }
     db = await databaseFactory.openDatabase(dbPath);
-    await db.execute('CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, shuffle TEXT, title TEXT, artist TEXT, album TEXT, genre TEXT, year TEXT, duration TEXT, path TEXT, playcount INTEGER)');
+    await db.execute('CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, shuffle TEXT, title TEXT, artist TEXT, album TEXT, track INTEGER, genre TEXT, year TEXT, duration TEXT, path TEXT, playcount INTEGER)');
     print('Database loaded');
     return true;
   }
@@ -41,6 +41,7 @@ class Library extends ChangeNotifier {
     final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
     if (mediaExists.isNotEmpty) {
       print('Media already exists in database');
+      mediaList.add(media);
       return;
     } else {
       print('Adding ${media.path} to database');
@@ -50,6 +51,7 @@ class Library extends ChangeNotifier {
       'title': media.title,
       'artist': media.artist,
       'album': media.album,
+      'track': media.track,
       'genre': media.genre,
       'year': media.year,
       'duration': media.duration,
@@ -79,20 +81,20 @@ class Library extends ChangeNotifier {
 
   // Load library database and parse it into a list of media objects
   Future loadLibraryFile() async {
-    if (await loadDB() == false) {
-      throw Exception('Error loading database');
-    }
-    var entries = await db.query('media');
-    for (var entry in entries) {
-      mediaList.add(Media(entry['shuffle'].toString(), entry['title'].toString(), entry['artist'].toString(), entry['album'].toString(),
+    await loadDB();
+    var dbMedia = await db.query('media');
+    for (var entry in dbMedia) {
+      print('Adding ${entry['path']} to media list');
+      mediaList.add(Media(entry['shuffle'].toString(), entry['title'].toString(), entry['artist'].toString(), entry['album'].toString(), int.parse(entry['track'].toString()),
        entry['genre'].toString(), entry['year'].toString(), entry['duration'].toString(), entry['path'].toString(), false, int.parse(entry['playcount'].toString())));
+       print('${mediaList.last.title} added to media list');
     }
   }
 
   Media getNext() {
     if (mediaList.isEmpty) {
       print('No media in library');
-      return Media('false', '', '', '', '', '', '', '', false, 0);
+      return Media('false', '', '', '', 0, '', '', '', '', false, 0);
       //throw Exception('No media in library');
     }
     // Locate an entry on the search list that is not playing and has a shuffle value of true.
@@ -134,6 +136,7 @@ class Library extends ChangeNotifier {
       'title': media.title,
       'artist': media.artist,
       'album': media.album,
+      'track': media.track,
       'genre': media.genre,
       'year': media.year,
       'duration': media.duration,
@@ -146,7 +149,7 @@ class Library extends ChangeNotifier {
 
   Future <Media> newMedia(String path) async {
     final metadata = await MetadataRetriever.fromFile(File(path));
-    Media tempMedia = Media('true', '', '', '', '', '', '', path, false, 0);
+    Media tempMedia = Media('true', '', '', '', 0, '', '', '', path, false, 0);
     if (metadata.trackName != null) tempMedia.setTitle(metadata.trackName!);
     if (metadata.trackArtistNames != null && metadata.trackArtistNames!.length > 1) {
       tempMedia.setArtist(metadata.trackArtistNames!.join(', '));
@@ -156,10 +159,96 @@ class Library extends ChangeNotifier {
       tempMedia.setArtist(metadata.albumArtistName!);
     }
     if (metadata.albumName != null) tempMedia.setAlbum(metadata.albumName!);
+    if (metadata.trackNumber != null) tempMedia.setTrack(metadata.trackNumber!);
     if (metadata.genre != null) tempMedia.setGenre(metadata.genre!);
     if (metadata.year != null) tempMedia.setYear(metadata.year!.toString());
     if (metadata.trackDuration != null) tempMedia.setDuration(metadata.trackDuration!.toString());
     return tempMedia;
+  }
+
+  List<Media> sortBy(String sortField) {
+    sortField = sortField.toLowerCase();
+    List<Media> sorted = List.of(mediaList);
+
+	sorted.sort((a, b) {
+		int pComparison;
+		switch (sortField) {
+		case 'title':
+			pComparison = a.title.compareTo(b.title);
+			break;
+		case 'artist':
+			pComparison = a.artist.compareTo(b.artist);
+			break;
+		case 'album':
+			pComparison = a.album.compareTo(b.album);
+			break;
+    case 'track':
+      pComparison = a.track.compareTo(b.track);
+      break;
+		case 'genre':
+			pComparison = a.genre.compareTo(b.genre);
+			break;
+		case 'year':
+			pComparison = a.year.compareTo(b.year);
+			break;
+		case 'duration':
+			pComparison = int.parse(a.duration).compareTo(int.parse(b.duration));
+			break;
+		case 'playcount':
+			pComparison = a.playCount.compareTo(b.playCount);
+			break;
+		default:
+			throw Exception('Invalid sort field: $sortField');
+		}
+	
+		// If primary fields are equal, sort by the secondary field
+		if (pComparison == 0) {
+      String secField = 'track';
+      if (a.track == b.track) {
+        if (a.title != b.title) {
+          secField = 'title';
+        } else if (a.artist != b.artist) {
+          secField = 'artist';
+        } else if (a.album != b.album) {
+          secField = 'album';
+        } else if (a.genre != b.genre) {
+          secField = 'genre';
+        } else if (a.year != b.year) {
+          secField = 'year';
+        } else if (a.duration != b.duration) {
+          secField = 'duration';
+        } else if (a.playCount != b.playCount) {
+          secField = 'playcount';
+        } else {
+          // nothin, you're SOL. Your identical tracks will be random FOR ALL TIME!!!
+          // Or just until I add more fields. Which is probably also indefinite.
+        }
+      }
+		  switch (secField) {
+			case 'title':
+			  return a.title.compareTo(b.title);
+			case 'artist':
+			  return a.artist.compareTo(b.artist);
+			case 'album':
+			  return a.album.compareTo(b.album);
+      case 'track':
+        return a.track.compareTo(b.track);
+			case 'genre':
+			  return a.genre.compareTo(b.genre);
+			case 'year':
+			  return a.year.compareTo(b.year);
+			case 'duration':
+			  return int.parse(a.duration).compareTo(int.parse(b.duration));
+			case 'playcount':
+			  return a.playCount.compareTo(b.playCount);
+			default:
+			  throw Exception('Invalid secondary sort field: $secField');
+		  }
+		}
+	
+		return pComparison;
+	});
+    return sorted;
   }
 }
 
@@ -168,6 +257,7 @@ class Media extends ChangeNotifier {
   String title = "Untitled";
   String artist = "Unknown Artist";
   String album = "Unknown Album";
+  int track = 0;
   String genre = "Unknown Genre";
   String year = "Unknown Year";
   String duration = "Unknown Duration";
@@ -176,7 +266,7 @@ class Media extends ChangeNotifier {
   bool isPlaying = false;
   int playCount = 0;
   
-  Media(this.shuffle,this.title, this.artist, this.album, this.genre, this.year, this.duration, this.path, this.isPlaying, this.playCount);
+  Media(this.shuffle,this.title, this.artist, this.album, this.track,this.genre, this.year, this.duration, this.path, this.isPlaying, this.playCount);
 
   Future<void> populateMetadata() async {
     final metadata = await MetadataRetriever.fromFile(File(path));
@@ -189,6 +279,7 @@ class Media extends ChangeNotifier {
       setArtist(metadata.albumArtistName!);
     }
     if (metadata.albumName != null) setAlbum(metadata.albumName!);
+    if (metadata.trackNumber != null) setTrack(metadata.trackNumber!);
     if (metadata.genre != null) setGenre(metadata.genre!);
     if (metadata.year != null) setYear(metadata.year!.toString());
     if (metadata.trackDuration != null) setDuration(metadata.trackDuration!.toString());
@@ -214,6 +305,11 @@ class Media extends ChangeNotifier {
 
   void setAlbum(String album) {
     this.album = album;
+    notifyListeners();
+  }
+
+  void setTrack(int track) {
+    this.track = track;
     notifyListeners();
   }
 

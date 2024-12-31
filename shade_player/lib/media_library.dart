@@ -149,20 +149,9 @@ class Library extends ChangeNotifier {
       await db.close();
       return;
     }
-    // TODO: Place into separate function
-    Map<String, dynamic> mediaMap = {
-      'shuffle': media.shuffle,
-      'title': media.title,
-      'artist': media.artist,
-      'album': media.album,
-      'track': media.track,
-      'genre': media.genre,
-      'year': media.year,
-      'duration': media.duration,
-      'path': media.path,
-      'playcount': media.playCount,
-    };
-    db.update('media', mediaMap, where: 'path = ?', whereArgs: [media.path]);
+
+    db.update('media', media.toMap(), where: 'path = ?', whereArgs: [media.path]);
+    print('Shuffle state changed for ${media.path}');
     notifyListeners();
   }
 
@@ -280,6 +269,16 @@ class Library extends ChangeNotifier {
     }
     return shuffled;
   }
+
+  void incrementPlayCount(Media? media) {
+    if (media != null) {
+      Media savedMedia = mediaList.firstWhere((element) => element.path == media.path);
+      savedMedia.playCount++;
+      db.update('media', savedMedia.toMap(), where: 'path = ?', whereArgs: [media.path]);
+      print('Play count incremented for ${media.path}');
+    }
+    notifyListeners();
+  }
 }
 
 class Media extends ChangeNotifier {
@@ -297,6 +296,21 @@ class Media extends ChangeNotifier {
   int playCount = 0;
   
   Media(this.shuffle,this.title, this.artist, this.album, this.track,this.genre, this.year, this.duration, this.path, this.isPlaying, this.playCount);
+
+  Map<String, dynamic> toMap() {
+    return {
+      'shuffle': shuffle,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'track': track,
+      'genre': genre,
+      'year': year,
+      'duration': duration,
+      'path': path,
+      'playcount': playCount,
+    };
+  }
 
   Future<void> populateMetadata() async {
     final metadata = await MetadataRetriever.fromFile(File(path));

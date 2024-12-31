@@ -223,8 +223,6 @@ class ControlButtons extends StatelessWidget {
 
         return Column(
           children: [
-            // Get current track title and artist
-            
             Text('${media?.artist} - ${media?.title}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -234,7 +232,9 @@ class ControlButtons extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.skip_previous),
                   onPressed: () {
-                    player.seek(Duration.zero); // TODO: Seek to previous track
+                    player.seekToPrevious();
+                    player.seek(Duration.zero); // Partially mitigates:
+                    // [just_audio_windows]: Broadcast playback event error: Error accessing BufferingProgress. Using default value of 1. 
                   },
                 ),
                 // Opens volume slider dialog
@@ -317,9 +317,8 @@ class ControlButtons extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.fast_forward),
                   onPressed: () {
-                    if (player.processingState == ProcessingState.completed) {
-                      player.seekToNext();
-                    }
+                    player.seekToNext();
+                    player.seek(Duration.zero);
                   },
                 ),
                 // Add button

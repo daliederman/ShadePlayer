@@ -22,7 +22,7 @@ class ShadePlayer extends StatefulWidget {
 
 class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   final _player = AudioPlayer();
-  final _library = Library();
+  final _library = MediaLibrary();
   final _playlist = ConcatenatingAudioSource(
     useLazyPreparation: false,
     shuffleOrder: DefaultShuffleOrder(),
@@ -30,11 +30,6 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
   );
   int iPage = 0;
   List<Media> sortedMedia = [];
-
-  int titleWidth = 100;
-  int durationWidth = 24;
-  int artistWidth = 100;
-  int albumWidth = 100;
 
   bool _isShuffleEnabled = true; // Replace with program setting
   
@@ -68,11 +63,6 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
       await preparePlaylist();
     } on Exception catch (e) {
       print("Error loading library file: $e");
-    }
-    try {
-      sortedMedia = _library.sortBy('artist');
-    } on Exception catch (e) {
-      print("Error loading media list: $e");
     }
 
     // Try to load audio from a source and catch any errors.
@@ -210,7 +200,7 @@ class ShadePlayerState extends State<ShadePlayer> with WidgetsBindingObserver {
 /// Displays the play/pause button and volume/speed sliders.
 class ControlButtons extends StatelessWidget {
   final AudioPlayer player;
-  final Library library;
+  final MediaLibrary library;
   final ConcatenatingAudioSource playlist;
   final VoidCallback ensureShuffle;
   final VoidCallback toggleShuffle;
@@ -379,7 +369,7 @@ class ShuffleButton extends StatelessWidget {
 }
 
 class SortedMediaList extends StatefulWidget {
-  final Library library;
+  final MediaLibrary library;
   final List<Media> sortedMedia;
   final AudioPlayer player;
   final ConcatenatingAudioSource playlist;

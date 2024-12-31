@@ -11,7 +11,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 
-class Library extends ChangeNotifier {
+class MediaLibrary extends ChangeNotifier {
   // Generic functions and comments helpfully provided by Supermaven
   String dbPath = 'C:/Flutter/ShadePlayer/shade_player/media_library.db';
   final _random = Random(DateTime.now().millisecondsSinceEpoch);
@@ -126,7 +126,7 @@ class Library extends ChangeNotifier {
     media.shuffle == 'true' ? media.shuffle = 'false' : media.shuffle = 'true';
     final mediaExists = await db.query('media', where: 'path = ?', whereArgs: [media.path]);
     if (mediaExists.isEmpty) {
-      await db.close();
+      //await db.close();
       return;
     }
 
@@ -241,7 +241,7 @@ class Library extends ChangeNotifier {
     return sorted;
   }
 
-  List<Media> getShuffled() {
+  List<Media> getShuffleable() {
     List<Media> shuffled = [];
     for (int i = 0; i < mediaList.length; i++) {
       if (mediaList[i].shuffle == 'true') {
@@ -256,7 +256,7 @@ class Library extends ChangeNotifier {
       Media savedMedia = mediaList.firstWhere((element) => element.path == media.path);
       savedMedia.playCount++;
       db.update('media', savedMedia.toMap(), where: 'path = ?', whereArgs: [media.path]);
-      print('Play count incremented for ${media.path}');
+      //print('Play count incremented for ${media.path}');
     }
     notifyListeners();
   }

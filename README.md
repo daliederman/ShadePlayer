@@ -1,5 +1,5 @@
 # Title: Shade Media Player
-#### Video URL: 
+#### Video URL: https://youtu.be/2ScAZzHm0cU
 #### Description:
 
 Shade Media Player is intended as a lightweight and multiplatform app for casual library playback featuring tools for curation of a main shuffle selection and a variety of smart playlists.
